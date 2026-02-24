@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WarfaSafe Scan | ระบบประเมินอันตรกิริยา Warfarin อัจฉริยะ</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f4f6f9; color: #2d3748; }
+        .header-bg { background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%); }
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; background-color: #ffffff; border-radius: 0.75rem; }
+        .action-btn { border: 2px dashed #cbd5e1; transition: all 0.3s ease; background-color: #f8fafc; }
+        .action-btn:hover { border-color: #3b82f6; background-color: #eff6ff; transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(59,130,246,0.1); }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 44px; height: 44px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .print-only { display: none; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <header class="header-bg text-white shadow-md no-print">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-shield-cross text-3xl"></i>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-wide leading-none">WarfaSafe Scan</h1>
+                    <p class="text-blue-200 text-sm font-light mt-1">ระบบเฝ้าระวังอันตรกิริยา Warfarin ด้วย AI (Secure API)</p>
+                </div>
+            </div>
+            <div class="text-right hidden md:block">
+                <p class="text-sm font-medium"><i class="fas fa-user-md mr-1"></i> สำหรับบุคลากรทางการแพทย์</p>
+                <div id="dbStatus" class="text-xs text-blue-200 mt-1"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังตรวจสอบฐานข้อมูล...</div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl mx-auto w-full px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="lg:col-span-1 space-y-6 no-print">
+            <div class="card-shadow p-6">
+                <h2 class="text-xl font-bold text-gray-800 border-b border-gray-100 pb-3 mb-5 flex items-center">
+                    <i class="fas fa-camera-retro text-blue-600 mr-2"></i> สแกนใบสั่งยา
+                </h2>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="action-btn rounded-xl p-4 text-center cursor-pointer flex flex-col items-center justify-center h-32" onclick="document.getElementById('cameraInput').click()">
+                        <i class="fas fa-camera text-3xl text-blue-500 mb-2"></i>
+                        <p class="text-gray-600 font-medium text-sm leading-tight">คลิกเพื่อ<br>ถ่ายรูปภาพ</p>
+                        <input type="file" id="cameraInput" class="hidden" accept="image/*" capture="environment" onchange="handleImageUpload(event)">
+                    </div>
+
+                    <div class="action-btn rounded-xl p-4 text-center cursor-pointer flex flex-col items-center justify-center h-32" onclick="document.getElementById('fileInput').click()">
+                        <i class="fas fa-cloud-upload-alt text-3xl text-blue-400 mb-2"></i>
+                        <p class="text-gray-600 font-medium text-sm leading-tight">คลิกเพื่อ<br>อัปโหลดใบสั่งยา</p>
+                        <input type="file" id="fileInput" class="hidden" accept="image/*" onchange="handleImageUpload(event)">
+                    </div>
+                </div>
+
+                <div id="imagePreviewContainer" class="hidden mt-6">
+                    <div class="p-2 border border-gray-200 rounded-lg bg-gray-50 mb-4">
+                        <img id="imagePreview" class="w-full object-contain max-h-60 rounded" src="" alt="ภาพใบสั่งยา">
+                    </div>
+                    <button onclick="startAnalysis()" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold py-3 rounded-lg shadow-md transition duration-200 flex items-center justify-center">
+                        <i class="fas fa-microchip mr-2 text-xl"></i> เริ่มวิเคราะห์ข้อมูล (AI Extract)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-2">
+            <div class="card-shadow p-6 min-h-[500px] relative" id="reportArea">
+                
+                <div class="print-only mb-6 border-b-2 border-gray-800 pb-4">
+                    <h2 class="text-2xl font-bold text-center mb-1">รายงานประเมินอันตรกิริยา Warfarin</h2>
+                    <h3 class="text-lg text-center text-gray-600 font-semibold mb-3">WarfaSafe Scan (AI-Assisted Assessment)</h3>
+                    <p class="text-right text-sm text-gray-600">ประทับเวลาวิเคราะห์: <span id="printTimestamp" class="font-bold"></span></p>
+                </div>
+
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-100 pb-3 mb-5 no-print gap-3">
+                    <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-clipboard-list text-blue-600 mr-2"></i> ผลการประเมินความเสี่ยง
+                    </h2>
+                    <button id="exportPdfBtn" onclick="exportToPDF()" class="hidden bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 font-bold py-2 px-4 rounded-lg text-sm transition shadow-sm flex items-center w-full sm:w-auto justify-center">
+                        <i class="fas fa-file-pdf mr-2"></i> บันทึกเป็น PDF
+                    </button>
+                </div>
+
+                <div id="emptyState" class="text-center py-20 text-gray-400 no-print flex flex-col items-center justify-center h-full">
+                    <div class="bg-gray-50 rounded-full p-8 mb-4 border border-gray-100">
+                        <i class="fas fa-file-medical text-6xl text-gray-300"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-500 mb-2">ระบบพร้อมทำงาน</h3>
+                    <p class="text-md">โปรดถ่ายรูปหรืออัปโหลดใบสั่งยาเพื่อเริ่มต้น</p>
+                </div>
+
+                <div id="loadingState" class="hidden text-center py-20 no-print flex flex-col items-center justify-center">
+                    <div class="loader mx-auto mb-6"></div>
+                    <p class="text-blue-600 font-bold text-xl" id="loadingText">ส่งข้อมูลไปยังเซิร์ฟเวอร์ความปลอดภัยสูง...</p>
+                    <p class="text-gray-500 text-sm mt-2"><i class="fas fa-lock mr-1"></i> ระบบกำลังให้ AI สกัดชื่อยาอย่างปลอดภัย</p>
+                </div>
+
+                <div id="resultsSection" class="hidden space-y-6">
+                    <div class="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                        <p class="text-sm font-bold text-blue-800 mb-3"><i class="fas fa-capsules mr-1"></i> รายการยาที่ AI สกัดและปรับแก้ตัวสะกดได้:</p>
+                        <div id="extractedDrugsList" class="flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <div id="safeMessage" class="hidden bg-emerald-50 border border-emerald-200 text-emerald-800 p-6 rounded-xl flex items-start gap-4 shadow-sm">
+                        <i class="fas fa-check-circle text-4xl text-emerald-500"></i>
+                        <div>
+                            <h3 class="text-xl font-bold mb-1">ปลอดภัย: ไม่พบอันตรกิริยาระดับ D หรือ X</h3>
+                            <p class="text-emerald-700">รายการยาที่วิเคราะห์ได้ ไม่มีปฏิกิริยารุนแรงกับ Warfarin ตามฐานข้อมูลอ้างอิง</p>
+                        </div>
+                    </div>
+                    
+                    <div id="dangerContainer" class="space-y-5"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // ==========================================
+        // 1. ตั้งค่าลิงก์ฐานข้อมูล (ไม่ต้องมี API Key แล้ว!)
+        // ==========================================
+        const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRlPDK0ezQlGk_ZNxzX_DiELXIDCFHM5lmmEY1rvv2_T8hvOyRXwdriHJDsrqyWE5i9P3S1c64Hem47/pub?output=csv";
+
+        let sheetData = [];
+        let fuse;
+        let base64Image = "";
+
+        // ==========================================
+        // 2. โหลดฐานข้อมูลจาก Google Sheets
+        // ==========================================
+        window.onload = () => {
+            Papa.parse(GOOGLE_SHEET_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    sheetData = results.data;
+                    const fuseOptions = {
+                        includeScore: true,
+                        threshold: 0.3,
+                        keys: ['interacting_drugs']
+                    };
+                    fuse = new Fuse(sheetData, fuseOptions);
+                    document.getElementById('dbStatus').innerHTML = `<span class="bg-green-100 text-green-800 px-2 py-1 rounded font-bold text-xs"><i class="fas fa-check-circle mr-1"></i> ฐานข้อมูลพร้อม (${sheetData.length})</span>`;
+                },
+                error: function() {
+                    document.getElementById('dbStatus').innerHTML = `<span class="bg-red-100 text-red-800 px-2 py-1 rounded font-bold text-xs"><i class="fas fa-times-circle mr-1"></i> เชื่อมต่อล้มเหลว</span>`;
+                }
+            });
+        };
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                base64Image = e.target.result.split(',')[1];
+                document.getElementById('imagePreview').src = e.target.result;
+                document.getElementById('imagePreviewContainer').classList.remove('hidden');
+                document.getElementById('emptyState').classList.add('hidden');
+                document.getElementById('resultsSection').classList.add('hidden');
+                document.getElementById('exportPdfBtn').classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // ==========================================
+        // 3. ส่งภาพไปให้ Backend (api/analyze.js) วิเคราะห์แบบปลอดภัย
+        // ==========================================
+        async function startAnalysis() {
+            if (!base64Image) {
+                alert("กรุณาอัปโหลดรูปภาพใบสั่งยาก่อนครับ"); return;
+            }
+            if (sheetData.length === 0) {
+                alert("ฐานข้อมูลยังไม่พร้อม! กรุณารอสักครู่"); return;
+            }
+            
+            showLoading("กำลังส่งข้อมูลให้ AI วิเคราะห์อย่างปลอดภัย...");
+            
+            try {
+                // เรียกใช้ API หลังบ้านของเราเอง (ไม่เห็นกุญแจ Google ในเบราว์เซอร์อีกต่อไป)
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ base64Image: base64Image })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+                }
+                
+                if (!data.candidates || data.candidates.length === 0) {
+                    throw new Error("AI ไม่สามารถอ่านข้อมูลจากภาพนี้ได้ โปรดถ่ายภาพให้ชัดเจนขึ้น");
+                }
+
+                let extractedText = data.candidates[0].content.parts[0].text.trim();
+                
+                if(extractedText.startsWith("```json")) {
+                    extractedText = extractedText.replace(/```json/g, "").replace(/```/g, "").trim();
+                } else if(extractedText.startsWith("```")) {
+                    extractedText = extractedText.replace(/```/g, "").trim();
+                }
+                
+                let foundDrugs;
+                try {
+                    foundDrugs = JSON.parse(extractedText);
+                } catch (parseError) {
+                    throw new Error(`AI ไม่สามารถสกัดชื่อยาได้ (ข้อมูลดิบ: ${extractedText})`);
+                }
+                
+                document.getElementById('loadingText').innerText = "กำลังประมวลผลอันตรกิริยาด้วย Fuzzy Matching...";
+                processInteractions(foundDrugs);
+
+            } catch (error) {
+                console.error("วิเคราะห์ล้มเหลว:", error);
+                alert(`เกิดข้อผิดพลาด:\n${error.message}`);
+                hideLoading();
+            }
+        }
+
+        // ==========================================
+        // 4. ระบบ Fuzzy Matching อัจฉริยะ 
+        // ==========================================
+        function processInteractions(scannedDrugs) {
+            const dangerContainer = document.getElementById('dangerContainer');
+            const drugsListBadge = document.getElementById('extractedDrugsList');
+            
+            dangerContainer.innerHTML = '';
+            drugsListBadge.innerHTML = '';
+            let hasDanger = false;
+
+            scannedDrugs.forEach(drug => {
+                drugsListBadge.innerHTML += `<span class="bg-white text-blue-800 text-sm font-bold px-4 py-1.5 rounded-full border border-blue-200 shadow-sm inline-block">${drug}</span>`;
+                
+                const result = fuse.search(drug);
+
+                if (result.length > 0) {
+                    const matchedRow = result[0].item;
+                    const rating = matchedRow['risk'] ? matchedRow['risk'].toUpperCase().trim() : '';
+
+                    if (rating === 'D' || rating === 'X') {
+                        hasDanger = true;
+                        renderInteractionCard(matchedRow['interacting_drugs'], matchedRow, rating);
+                    }
+                }
+            });
+
+            const now = new Date();
+            const timeOptions = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' };
+            document.getElementById('printTimestamp').innerText = now.toLocaleDateString('th-TH', timeOptions);
+
+            hideLoading();
+            document.getElementById('resultsSection').classList.remove('hidden');
+            
+            if (!hasDanger) {
+                document.getElementById('safeMessage').classList.remove('hidden');
+                document.getElementById('exportPdfBtn').classList.add('hidden'); 
+            } else {
+                document.getElementById('safeMessage').classList.add('hidden');
+                document.getElementById('exportPdfBtn').classList.remove('hidden'); 
+            }
+        }
+
+        function renderInteractionCard(drugName, rowData, level) {
+            const container = document.getElementById('dangerContainer');
+            const isLevelX = level === 'X';
+            
+            const colorTheme = isLevelX ? 
+                { bg: 'bg-red-50', border: 'border-red-500', text: 'text-red-700', icon: 'fa-ban', title: 'ระดับ X: Avoid combination (ห้ามใช้ร่วมกันเด็ดขาด)' } : 
+                { bg: 'bg-orange-50', border: 'border-orange-500', text: 'text-orange-700', icon: 'fa-exclamation-triangle', title: 'ระดับ D: Consider therapy modification (พิจารณาปรับแผน)' };
+
+            const summaryData = rowData['summary'] || '-';
+            const managementData = rowData['management'] || '-';
+            const discussionData = rowData['discussion'] || '-';
+
+            const cardHTML = `
+                <div class="${colorTheme.bg} border-l-4 ${colorTheme.border} rounded-xl shadow-sm overflow-hidden border border-gray-200 break-inside-avoid">
+                    <div class="p-4 border-b border-gray-200/60 flex items-center bg-white/60">
+                        <div class="${colorTheme.text} bg-white w-10 h-10 flex items-center justify-center rounded-full shadow-sm mr-4 shrink-0">
+                            <i class="fas ${colorTheme.icon} text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-gray-900 text-lg sm:text-xl">Warfarin + <span class="underline decoration-2 underline-offset-4">${drugName}</span></h3>
+                            <p class="text-sm sm:text-base font-bold ${colorTheme.text} mt-0.5">${colorTheme.title}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="p-0 text-sm sm:text-base text-gray-800 bg-white">
+                        <table class="w-full text-left border-collapse">
+                            <tbody>
+                                <tr class="border-b border-gray-100">
+                                    <td class="py-3 px-4 font-bold text-gray-700 bg-gray-50 w-1/4 sm:w-1/5 align-top">Summary</td>
+                                    <td class="py-3 px-4 leading-relaxed">${summaryData}</td>
+                                </tr>
+                                <tr class="border-b border-gray-100">
+                                    <td class="py-3 px-4 font-bold text-blue-800 bg-blue-50/50 align-top">Management</td>
+                                    <td class="py-3 px-4 font-bold text-blue-900 bg-blue-50/20 leading-relaxed">${managementData}</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-3 px-4 font-bold text-gray-700 bg-gray-50 align-top">Discussion</td>
+                                    <td class="py-3 px-4 text-gray-600 leading-relaxed">${discussionData}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += cardHTML;
+        }
+
+        function exportToPDF() {
+            const elementsToHide = document.querySelectorAll('.no-print');
+            elementsToHide.forEach(el => el.style.display = 'none');
+            
+            const printHeaders = document.querySelectorAll('.print-only');
+            printHeaders.forEach(el => el.style.display = 'block');
+
+            const element = document.getElementById('reportArea');
+            const opt = {
+                margin:       [15, 15, 15, 15],
+                filename:     `WarfaSafe_Assessment_${new Date().getTime()}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            const btn = document.getElementById('exportPdfBtn');
+            const originalBtnContent = btn.innerHTML;
+            
+            elementsToHide.forEach(el => el.style.display = '');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> กำลังสร้าง PDF...';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                elementsToHide.forEach(el => el.style.display = 'none');
+                html2pdf().set(opt).from(element).save().then(() => {
+                    elementsToHide.forEach(el => el.style.display = '');
+                    printHeaders.forEach(el => el.style.display = 'none');
+                    btn.innerHTML = originalBtnContent;
+                    btn.disabled = false;
+                });
+            }, 100);
+        }
+
+        function showLoading(text) {
+            document.getElementById('loadingState').classList.remove('hidden');
+            document.getElementById('loadingText').innerText = text;
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('resultsSection').classList.add('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingState').classList.add('hidden');
+            if(document.getElementById('resultsSection').classList.contains('hidden')) {
+                document.getElementById('emptyState').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
