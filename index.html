@@ -22,17 +22,6 @@
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 44px; height: 44px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .print-only { display: none; }
-        
-        /* Animation สำหรับไฟกระพริบแจ้งเตือนระดับ X */
-        @keyframes emergency-flash {
-            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); border-color: #fca5a5; }
-            50% { box-shadow: 0 0 20px 10px rgba(220, 38, 38, 0.3); border-color: #dc2626; }
-            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); border-color: #fca5a5; }
-        }
-        .critical-alert-active {
-            animation: emergency-flash 1.5s infinite;
-            border: 2px solid #dc2626 !important;
-        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -80,7 +69,7 @@
                         <img id="imagePreview" class="object-contain max-h-56 rounded shadow-sm" src="" alt="ภาพใบสั่งยา">
                     </div>
                     <button onclick="startAnalysis()" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold py-3 rounded-lg shadow-md transition duration-200 flex items-center justify-center">
-                        <i class="fas fa-microchip mr-2 text-xl"></i> เริ่มวิเคราะห์ข้อมูล (AI Extract)
+                        <i class="fas fa-microchip mr-2 text-xl"></i> เริ่มวิเคราะห์ข้อมูล 
                     </button>
                 </div>
             </div>
@@ -91,7 +80,7 @@
                 
                 <div class="print-only mb-6 border-b-2 border-gray-800 pb-4">
                     <h2 class="text-2xl font-bold text-center mb-1">รายงานประเมินอันตรกิริยา Warfarin</h2>
-                    <h3 class="text-lg text-center text-gray-600 font-semibold mb-3">WarfaSafe Scan (AI-Assisted Assessment)</h3>
+                    <h3 class="text-lg text-center text-gray-600 font-semibold mb-3">WarfarinSafe Scan</h3>
                     <p class="text-right text-sm text-gray-600">ประทับเวลาวิเคราะห์: <span id="printTimestamp" class="font-bold"></span></p>
                 </div>
 
@@ -122,7 +111,7 @@
                     <div id="loadingState" class="hidden absolute inset-0 flex flex-col items-center justify-center text-center no-print">
                         <div class="loader mx-auto mb-6"></div>
                         <p class="text-blue-600 font-bold text-xl" id="loadingText">ส่งข้อมูลไปยังเซิร์ฟเวอร์เพื่อประมวลผล...</p>
-                        <p class="text-gray-500 text-sm mt-2"><i class="fas fa-lock mr-1"></i> ระบบกำลังให้ AI สกัดชื่อยาอย่างปลอดภัย</p>
+                        <p class="text-gray-500 text-sm mt-2"><i class="fas fa-lock mr-1"></i> อยู่ระหว่างการประมวลผล</p>
                     </div>
 
                     <div id="resultsSection" class="hidden w-full h-full space-y-6 pb-4">
@@ -155,6 +144,13 @@
         let base64Image = "";
         let globalInteractions = [];
 
+        // โหลดเสียงล่วงหน้า (พรีโหลด) ป้องกันอาการเสียงไม่ออกในครั้งแรก
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = function() {
+                window.speechSynthesis.getVoices();
+            };
+        }
+
         window.onload = () => {
             Papa.parse(GOOGLE_SHEET_URL, {
                 download: true,
@@ -181,14 +177,12 @@
             });
         };
 
-        // ระบบจัดการ State ของหน้าจอที่แก้ปัญหาบั๊กซ้อนทับ 100%
         function setUIState(state) {
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('loadingState').classList.add('hidden');
             document.getElementById('resultsSection').classList.add('hidden');
             document.getElementById('exportPdfBtn').classList.add('hidden');
             document.getElementById('printStickerBtn').classList.add('hidden');
-            document.getElementById('reportArea').classList.remove('critical-alert-active'); // ปิดไฟกระพริบ
 
             if (state === 'empty') {
                 document.getElementById('emptyState').classList.remove('hidden');
@@ -207,7 +201,7 @@
                 base64Image = e.target.result.split(',')[1];
                 document.getElementById('imagePreview').src = e.target.result;
                 document.getElementById('imagePreviewContainer').classList.remove('hidden');
-                setUIState('empty'); // รีเซ็ตหน้าจอกลับมารอวิเคราะห์
+                setUIState('empty');
             };
             reader.readAsDataURL(file);
         }
@@ -285,7 +279,7 @@
             const now = new Date();
             document.getElementById('printTimestamp').innerText = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' });
 
-            setUIState('results'); // เปลี่ยนสถานะเป็นหน้าผลลัพธ์ (กล่องเก่าจะหายไป 100%)
+            setUIState('results');
             
             if (!hasDanger) {
                 document.getElementById('safeMessage').classList.remove('hidden');
@@ -294,28 +288,34 @@
                 document.getElementById('exportPdfBtn').classList.remove('hidden'); 
                 document.getElementById('printStickerBtn').classList.remove('hidden'); 
 
-                // 🚨 Trigger Killer Feature: เสียงพูด + ไฟกระพริบ เมื่อเจอระดับ X
                 if (hasCriticalLevelX) {
-                    triggerCriticalAlert(criticalDrugsNames.join(' และ '));
+                    triggerCriticalAlert(criticalDrugsNames.join(', '));
                 }
             }
         }
 
-        // ฟังก์ชันไม้ตาย: แจ้งเตือนฉุกเฉินด้วยแสงและเสียง
+        // ฟังก์ชันอ่านออกเสียง 2 ภาษาที่ได้รับการปรับปรุง
         function triggerCriticalAlert(drugNames) {
-            // เปิดไฟกระพริบสีแดงที่กรอบ
-            document.getElementById('reportArea').classList.add('critical-alert-active');
-            
-            // ใช้ Web Speech API พูดภาษาไทย
             if ('speechSynthesis' in window) {
-                // หยุดเสียงเดิมที่อาจจะพูดค้างอยู่
                 window.speechSynthesis.cancel();
                 
                 const msg = new SpeechSynthesisUtterance();
-                msg.text = `แจ้งเตือนความปลอดภัย พบอันตรกิริยาระดับเอ็กซ์ ห้ามใช้ยา ${drugNames} ร่วมกับ วาร์ฟาริน เด็ดขาด`;
-                msg.lang = 'th-TH'; // ภาษาไทย
-                msg.rate = 0.9; // พูดช้าลงนิดนึงให้ฟังชัด
-                msg.pitch = 1.1; // โทนเสียงเตือน
+                // ใส่การเว้นวรรค (,) รอบชื่อยาภาษาอังกฤษ เพื่อให้เอนจินประมวลผลการอ่านแยกภาษาได้ดีขึ้น
+                msg.text = `แจ้งเตือนความปลอดภัย. พบอันตรกิริยาระดับเอ็กซ์. ห้ามใช้ยา, ${drugNames}, ร่วมกับ วาร์ฟาริน เด็ดขาด`;
+                msg.lang = 'th-TH'; 
+                msg.rate = 0.85; // พูดช้าลงเล็กน้อยเพื่อให้ภาษาอังกฤษชัดเจนขึ้น
+                msg.pitch = 1.0; 
+                
+                // เลือกระบบเสียงที่ดีที่สุดที่มีในเครื่อง (พยายามหาเสียง Google หรือเสียงที่อ่านได้ 2 ภาษาแบบเนียนๆ)
+                let voices = window.speechSynthesis.getVoices();
+                let bestVoice = voices.find(v => v.lang.includes('th') && (v.name.includes('Google') || v.name.includes('Premium') || v.name.includes('Siri')));
+                
+                if(bestVoice) {
+                    msg.voice = bestVoice;
+                } else {
+                    let fallbackVoice = voices.find(v => v.lang.includes('th'));
+                    if(fallbackVoice) msg.voice = fallbackVoice;
+                }
                 
                 window.speechSynthesis.speak(msg);
             }
@@ -364,7 +364,6 @@
             container.innerHTML += cardHTML;
         }
 
-        // ฟังก์ชันพิมพ์สติกเกอร์ที่สมบูรณ์แบบ
         function printSticker() {
             if(globalInteractions.length === 0) return;
 
