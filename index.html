@@ -22,6 +22,17 @@
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 44px; height: 44px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .print-only { display: none; }
+        
+        /* Animation สำหรับไฟกระพริบแจ้งเตือนระดับ X (Visual Alarm กลับมาแล้ว!) */
+        @keyframes emergency-flash {
+            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); border-color: #fca5a5; }
+            50% { box-shadow: 0 0 20px 10px rgba(220, 38, 38, 0.3); border-color: #dc2626; }
+            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); border-color: #fca5a5; }
+        }
+        .critical-alert-active {
+            animation: emergency-flash 1.5s infinite;
+            border: 2px solid #dc2626 !important;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -69,7 +80,7 @@
                         <img id="imagePreview" class="object-contain max-h-56 rounded shadow-sm" src="" alt="ภาพใบสั่งยา">
                     </div>
                     <button onclick="startAnalysis()" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold py-3 rounded-lg shadow-md transition duration-200 flex items-center justify-center">
-                        <i class="fas fa-microchip mr-2 text-xl"></i> เริ่มวิเคราะห์ข้อมูล
+                        <i class="fas fa-microchip mr-2 text-xl"></i> เริ่มวิเคราะห์ข้อมูล (AI Extract)
                     </button>
                 </div>
             </div>
@@ -80,7 +91,7 @@
                 
                 <div class="print-only mb-6 border-b-2 border-gray-800 pb-4">
                     <h2 class="text-2xl font-bold text-center mb-1">รายงานประเมินอันตรกิริยา Warfarin</h2>
-                    <h3 class="text-lg text-center text-gray-600 font-semibold mb-3">WarfarinSafe Scan</h3>
+                    <h3 class="text-lg text-center text-gray-600 font-semibold mb-3">WarfaSafe Scan (AI-Assisted Assessment)</h3>
                     <p class="text-right text-sm text-gray-600">ประทับเวลาวิเคราะห์: <span id="printTimestamp" class="font-bold"></span></p>
                 </div>
 
@@ -90,7 +101,7 @@
                     </h2>
                     <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                         <button id="printStickerBtn" onclick="printSticker()" class="hidden bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 font-bold py-2 px-4 rounded-lg text-sm transition shadow-sm flex items-center justify-center">
-                            <i class="fas fa-print mr-2"></i> พิมพ์สติกเกอร์
+                            <i class="fas fa-print mr-2"></i> พิมพ์สติกเกอร์ (10x8 cm)
                         </button>
                         <button id="exportPdfBtn" onclick="exportToPDF()" class="hidden bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 font-bold py-2 px-4 rounded-lg text-sm transition shadow-sm flex items-center justify-center">
                             <i class="fas fa-file-pdf mr-2"></i> บันทึก PDF
@@ -111,12 +122,12 @@
                     <div id="loadingState" class="hidden absolute inset-0 flex flex-col items-center justify-center text-center no-print">
                         <div class="loader mx-auto mb-6"></div>
                         <p class="text-blue-600 font-bold text-xl" id="loadingText">ส่งข้อมูลไปยังเซิร์ฟเวอร์เพื่อประมวลผล...</p>
-                        <p class="text-gray-500 text-sm mt-2"><i class="fas fa-lock mr-1"></i> ระบบกำลังสกัดชื่อยาอย่างปลอดภัย</p>
+                        <p class="text-gray-500 text-sm mt-2"><i class="fas fa-lock mr-1"></i> ระบบกำลังให้ AI สกัดชื่อยาอย่างปลอดภัย</p>
                     </div>
 
                     <div id="resultsSection" class="hidden w-full h-full space-y-6 pb-4">
                         <div class="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
-                            <p class="text-sm font-bold text-blue-800 mb-3"><i class="fas fa-capsules mr-1"></i> รายการยาที่สกัดและปรับแก้ตัวสะกดได้:</p>
+                            <p class="text-sm font-bold text-blue-800 mb-3"><i class="fas fa-capsules mr-1"></i> รายการยาที่ AI สกัดและปรับแก้ตัวสะกดได้:</p>
                             <div id="extractedDrugsList" class="flex flex-wrap gap-2"></div>
                         </div>
 
@@ -171,12 +182,15 @@
         };
 
         function setUIState(state) {
+            // ซ่อนทุกอย่างในพื้นที่แสดงผลก่อน
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('loadingState').classList.add('hidden');
             document.getElementById('resultsSection').classList.add('hidden');
             document.getElementById('exportPdfBtn').classList.add('hidden');
             document.getElementById('printStickerBtn').classList.add('hidden');
+            document.getElementById('reportArea').classList.remove('critical-alert-active'); // ปิดไฟกระพริบ
 
+            // แสดงเฉพาะอันที่ถูกเรียก
             if (state === 'empty') {
                 document.getElementById('emptyState').classList.remove('hidden');
             } else if (state === 'loading') {
@@ -192,8 +206,12 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 base64Image = e.target.result.split(',')[1];
+                
+                // แก้บั๊กตรงนี้: แสดงภาพ และปุ่มวิเคราะห์ โดยไม่ไปรบกวน state ฝั่งขวา
                 document.getElementById('imagePreview').src = e.target.result;
                 document.getElementById('imagePreviewContainer').classList.remove('hidden');
+                
+                // สั่งให้ฝั่งขวากลับไปโชว์หน้า "ระบบพร้อมทำงาน" รอการกดปุ่ม
                 setUIState('empty');
             };
             reader.readAsDataURL(file);
@@ -216,7 +234,7 @@
                 const data = await response.json();
 
                 if (!response.ok) throw new Error(data.error || "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
-                if (!data.candidates || data.candidates.length === 0) throw new Error("ไม่สามารถอ่านข้อมูลจากภาพนี้ได้");
+                if (!data.candidates || data.candidates.length === 0) throw new Error("AI ไม่สามารถอ่านข้อมูลจากภาพนี้ได้");
 
                 let extractedText = data.candidates[0].content.parts[0].text.trim();
                 if(extractedText.startsWith("```json")) extractedText = extractedText.replace(/```json/g, "").replace(/```/g, "").trim();
@@ -224,7 +242,7 @@
                 
                 let foundDrugs;
                 try { foundDrugs = JSON.parse(extractedText); } 
-                catch (parseError) { throw new Error(`ไม่สามารถสกัดชื่อยาได้ (ข้อมูลดิบ: ${extractedText})`); }
+                catch (parseError) { throw new Error(`AI ไม่สามารถสกัดชื่อยาได้ (ข้อมูลดิบ: ${extractedText})`); }
                 
                 document.getElementById('loadingText').innerText = "กำลังครอสเช็กอันตรกิริยา (Fuzzy Matching)...";
                 processInteractions(foundDrugs);
@@ -244,6 +262,7 @@
             drugsListBadge.innerHTML = '';
             
             let hasDanger = false;
+            let hasCriticalLevelX = false;
             globalInteractions = [];
 
             scannedDrugs.forEach(drug => {
@@ -257,6 +276,9 @@
 
                     if (rating === 'D' || rating === 'X') {
                         hasDanger = true;
+                        if (rating === 'X') {
+                            hasCriticalLevelX = true; // เปิดใช้งานไฟกระพริบเมื่อเจอระดับ X
+                        }
                         globalInteractions.push({ drugName: matchedRow['interacting_drugs'], level: rating, row: matchedRow });
                         renderInteractionCard(matchedRow['interacting_drugs'], matchedRow, rating);
                     }
@@ -274,6 +296,11 @@
                 document.getElementById('safeMessage').classList.add('hidden');
                 document.getElementById('exportPdfBtn').classList.remove('hidden'); 
                 document.getElementById('printStickerBtn').classList.remove('hidden'); 
+
+                // เปิดไฟกระพริบฉุกเฉิน (Visual Alarm) ถ้าระบบพบยาระดับ X
+                if (hasCriticalLevelX) {
+                    document.getElementById('reportArea').classList.add('critical-alert-active');
+                }
             }
         }
 
@@ -285,7 +312,7 @@
                 { bg: 'bg-red-50', border: 'border-red-500', text: 'text-red-700', icon: 'fa-ban', title: 'ระดับ X: Avoid combination (ห้ามใช้ร่วมกัน)' } : 
                 { bg: 'bg-orange-50', border: 'border-orange-500', text: 'text-orange-700', icon: 'fa-exclamation-triangle', title: 'ระดับ D: Consider therapy modification (พิจารณาปรับแผน)' };
 
-            // อัปเกรด: เปลี่ยนจาก border-l-4 และลบ border-gray-200 ออก เพื่อใช้ border-4 ซึ่งจะทำให้ขอบสมมาตรเท่ากันทั้ง 4 ด้าน
+            // กรอบ 4 ด้านสมมาตรสวยงาม (border-4)
             const cardHTML = `
                 <div class="${colorTheme.bg} border-4 ${colorTheme.border} rounded-xl shadow-sm overflow-hidden break-inside-avoid">
                     <div class="p-4 border-b border-gray-200/60 flex items-center bg-white/60">
