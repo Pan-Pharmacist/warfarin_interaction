@@ -69,7 +69,7 @@
                         <img id="imagePreview" class="object-contain max-h-56 rounded shadow-sm" src="" alt="ภาพใบสั่งยา">
                     </div>
                     <button onclick="startAnalysis()" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold py-3 rounded-lg shadow-md transition duration-200 flex items-center justify-center">
-                        <i class="fas fa-microchip mr-2 text-xl"></i> เริ่มวิเคราะห์ข้อมูล 
+                        <i class="fas fa-microchip mr-2 text-xl"></i> เริ่มวิเคราะห์ข้อมูล
                     </button>
                 </div>
             </div>
@@ -90,7 +90,7 @@
                     </h2>
                     <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                         <button id="printStickerBtn" onclick="printSticker()" class="hidden bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 font-bold py-2 px-4 rounded-lg text-sm transition shadow-sm flex items-center justify-center">
-                            <i class="fas fa-print mr-2"></i> พิมพ์สติกเกอร์ (10x8 cm)
+                            <i class="fas fa-print mr-2"></i> พิมพ์สติกเกอร์
                         </button>
                         <button id="exportPdfBtn" onclick="exportToPDF()" class="hidden bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 font-bold py-2 px-4 rounded-lg text-sm transition shadow-sm flex items-center justify-center">
                             <i class="fas fa-file-pdf mr-2"></i> บันทึก PDF
@@ -111,12 +111,12 @@
                     <div id="loadingState" class="hidden absolute inset-0 flex flex-col items-center justify-center text-center no-print">
                         <div class="loader mx-auto mb-6"></div>
                         <p class="text-blue-600 font-bold text-xl" id="loadingText">ส่งข้อมูลไปยังเซิร์ฟเวอร์เพื่อประมวลผล...</p>
-                        <p class="text-gray-500 text-sm mt-2"><i class="fas fa-lock mr-1"></i> อยู่ระหว่างการประมวลผล</p>
+                        <p class="text-gray-500 text-sm mt-2"><i class="fas fa-lock mr-1"></i> ระบบกำลังสกัดชื่อยาอย่างปลอดภัย</p>
                     </div>
 
                     <div id="resultsSection" class="hidden w-full h-full space-y-6 pb-4">
                         <div class="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
-                            <p class="text-sm font-bold text-blue-800 mb-3"><i class="fas fa-capsules mr-1"></i> รายการยาที่ AI สกัดและปรับแก้ตัวสะกดได้:</p>
+                            <p class="text-sm font-bold text-blue-800 mb-3"><i class="fas fa-capsules mr-1"></i> รายการยาที่สกัดและปรับแก้ตัวสะกดได้:</p>
                             <div id="extractedDrugsList" class="flex flex-wrap gap-2"></div>
                         </div>
 
@@ -143,13 +143,6 @@
         let fuse;
         let base64Image = "";
         let globalInteractions = [];
-
-        // โหลดเสียงล่วงหน้า (พรีโหลด) ป้องกันอาการเสียงไม่ออกในครั้งแรก
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.onvoiceschanged = function() {
-                window.speechSynthesis.getVoices();
-            };
-        }
 
         window.onload = () => {
             Papa.parse(GOOGLE_SHEET_URL, {
@@ -223,7 +216,7 @@
                 const data = await response.json();
 
                 if (!response.ok) throw new Error(data.error || "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
-                if (!data.candidates || data.candidates.length === 0) throw new Error("AI ไม่สามารถอ่านข้อมูลจากภาพนี้ได้");
+                if (!data.candidates || data.candidates.length === 0) throw new Error("ไม่สามารถอ่านข้อมูลจากภาพนี้ได้");
 
                 let extractedText = data.candidates[0].content.parts[0].text.trim();
                 if(extractedText.startsWith("```json")) extractedText = extractedText.replace(/```json/g, "").replace(/```/g, "").trim();
@@ -231,7 +224,7 @@
                 
                 let foundDrugs;
                 try { foundDrugs = JSON.parse(extractedText); } 
-                catch (parseError) { throw new Error(`AI ไม่สามารถสกัดชื่อยาได้ (ข้อมูลดิบ: ${extractedText})`); }
+                catch (parseError) { throw new Error(`ไม่สามารถสกัดชื่อยาได้ (ข้อมูลดิบ: ${extractedText})`); }
                 
                 document.getElementById('loadingText').innerText = "กำลังครอสเช็กอันตรกิริยา (Fuzzy Matching)...";
                 processInteractions(foundDrugs);
@@ -251,8 +244,6 @@
             drugsListBadge.innerHTML = '';
             
             let hasDanger = false;
-            let hasCriticalLevelX = false;
-            let criticalDrugsNames = [];
             globalInteractions = [];
 
             scannedDrugs.forEach(drug => {
@@ -266,10 +257,6 @@
 
                     if (rating === 'D' || rating === 'X') {
                         hasDanger = true;
-                        if (rating === 'X') {
-                            hasCriticalLevelX = true;
-                            criticalDrugsNames.push(matchedRow['interacting_drugs']);
-                        }
                         globalInteractions.push({ drugName: matchedRow['interacting_drugs'], level: rating, row: matchedRow });
                         renderInteractionCard(matchedRow['interacting_drugs'], matchedRow, rating);
                     }
@@ -287,37 +274,6 @@
                 document.getElementById('safeMessage').classList.add('hidden');
                 document.getElementById('exportPdfBtn').classList.remove('hidden'); 
                 document.getElementById('printStickerBtn').classList.remove('hidden'); 
-
-                if (hasCriticalLevelX) {
-                    triggerCriticalAlert(criticalDrugsNames.join(', '));
-                }
-            }
-        }
-
-        // ฟังก์ชันอ่านออกเสียง 2 ภาษาที่ได้รับการปรับปรุง
-        function triggerCriticalAlert(drugNames) {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                
-                const msg = new SpeechSynthesisUtterance();
-                // ใส่การเว้นวรรค (,) รอบชื่อยาภาษาอังกฤษ เพื่อให้เอนจินประมวลผลการอ่านแยกภาษาได้ดีขึ้น
-                msg.text = `แจ้งเตือนความปลอดภัย. พบอันตรกิริยาระดับเอ็กซ์. ห้ามใช้ยา, ${drugNames}, ร่วมกับ วาร์ฟาริน เด็ดขาด`;
-                msg.lang = 'th-TH'; 
-                msg.rate = 0.85; // พูดช้าลงเล็กน้อยเพื่อให้ภาษาอังกฤษชัดเจนขึ้น
-                msg.pitch = 1.0; 
-                
-                // เลือกระบบเสียงที่ดีที่สุดที่มีในเครื่อง (พยายามหาเสียง Google หรือเสียงที่อ่านได้ 2 ภาษาแบบเนียนๆ)
-                let voices = window.speechSynthesis.getVoices();
-                let bestVoice = voices.find(v => v.lang.includes('th') && (v.name.includes('Google') || v.name.includes('Premium') || v.name.includes('Siri')));
-                
-                if(bestVoice) {
-                    msg.voice = bestVoice;
-                } else {
-                    let fallbackVoice = voices.find(v => v.lang.includes('th'));
-                    if(fallbackVoice) msg.voice = fallbackVoice;
-                }
-                
-                window.speechSynthesis.speak(msg);
             }
         }
 
@@ -329,8 +285,9 @@
                 { bg: 'bg-red-50', border: 'border-red-500', text: 'text-red-700', icon: 'fa-ban', title: 'ระดับ X: Avoid combination (ห้ามใช้ร่วมกัน)' } : 
                 { bg: 'bg-orange-50', border: 'border-orange-500', text: 'text-orange-700', icon: 'fa-exclamation-triangle', title: 'ระดับ D: Consider therapy modification (พิจารณาปรับแผน)' };
 
+            // อัปเกรด: เปลี่ยนจาก border-l-4 และลบ border-gray-200 ออก เพื่อใช้ border-4 ซึ่งจะทำให้ขอบสมมาตรเท่ากันทั้ง 4 ด้าน
             const cardHTML = `
-                <div class="${colorTheme.bg} border-l-4 ${colorTheme.border} rounded-xl shadow-sm overflow-hidden border border-gray-200 break-inside-avoid">
+                <div class="${colorTheme.bg} border-4 ${colorTheme.border} rounded-xl shadow-sm overflow-hidden break-inside-avoid">
                     <div class="p-4 border-b border-gray-200/60 flex items-center bg-white/60">
                         <div class="${colorTheme.text} bg-white w-10 h-10 flex items-center justify-center rounded-full shadow-sm mr-4 shrink-0">
                             <i class="fas ${colorTheme.icon} text-xl"></i>
