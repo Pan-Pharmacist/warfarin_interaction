@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WarfaSafe Scan | ระบบประเมินอันตรกิริยา Warfarin อัจฉริยะ</title>
+    <title>WarfaSafe Scan | ระบบประเมินอันตรกิริยา Warfarin</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -22,6 +22,17 @@
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 44px; height: 44px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .print-only { display: none; }
+        
+        /* Animation สำหรับไฟกระพริบแจ้งเตือนระดับ X */
+        @keyframes emergency-flash {
+            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); border-color: #fca5a5; }
+            50% { box-shadow: 0 0 20px 10px rgba(220, 38, 38, 0.3); border-color: #dc2626; }
+            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); border-color: #fca5a5; }
+        }
+        .critical-alert-active {
+            animation: emergency-flash 1.5s infinite;
+            border: 2px solid #dc2626 !important;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -76,7 +87,7 @@
         </div>
 
         <div class="lg:col-span-2">
-            <div class="card-shadow p-6 min-h-[500px] relative flex flex-col" id="reportArea">
+            <div class="card-shadow p-6 min-h-[500px] flex flex-col transition-all duration-300" id="reportArea">
                 
                 <div class="print-only mb-6 border-b-2 border-gray-800 pb-4">
                     <h2 class="text-2xl font-bold text-center mb-1">รายงานประเมินอันตรกิริยา Warfarin</h2>
@@ -98,49 +109,50 @@
                     </div>
                 </div>
 
-                <div id="emptyState" class="text-center py-20 text-gray-400 no-print flex-grow flex flex-col items-center justify-center">
-                    <div class="bg-gray-50 rounded-full p-8 mb-4 border border-gray-100">
-                        <i class="fas fa-file-medical text-6xl text-gray-300"></i>
-                    </div>
-                    <h3 class="text-xl font-bold text-gray-500 mb-2">ระบบพร้อมทำงาน</h3>
-                    <p class="text-md">โปรดถ่ายรูปหรืออัปโหลดใบสั่งยาเพื่อเริ่มต้น</p>
-                </div>
-
-                <div id="loadingState" class="hidden text-center py-20 no-print flex-grow flex flex-col items-center justify-center">
-                    <div class="loader mx-auto mb-6"></div>
-                    <p class="text-blue-600 font-bold text-xl" id="loadingText">ส่งข้อมูลไปยังเซิร์ฟเวอร์เพื่อประมวลผล...</p>
-                    <p class="text-gray-500 text-sm mt-2"><i class="fas fa-lock mr-1"></i> ระบบกำลังให้ AI สกัดชื่อยาอย่างปลอดภัย</p>
-                </div>
-
-                <div id="resultsSection" class="hidden space-y-6">
-                    <div class="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
-                        <p class="text-sm font-bold text-blue-800 mb-3"><i class="fas fa-capsules mr-1"></i> รายการยาที่ AI สกัดและปรับแก้ตัวสะกดได้:</p>
-                        <div id="extractedDrugsList" class="flex flex-wrap gap-2"></div>
-                    </div>
-
-                    <div id="safeMessage" class="hidden bg-emerald-50 border border-emerald-200 text-emerald-800 p-6 rounded-xl flex items-start gap-4 shadow-sm">
-                        <i class="fas fa-check-circle text-4xl text-emerald-500"></i>
-                        <div>
-                            <h3 class="text-xl font-bold mb-1">ปลอดภัย: ไม่พบอันตรกิริยาระดับ D หรือ X</h3>
-                            <p class="text-emerald-700">รายการยาที่วิเคราะห์ได้ ไม่มีปฏิกิริยารุนแรงกับ Warfarin ตามฐานข้อมูลอ้างอิง</p>
-                        </div>
-                    </div>
+                <div id="stateContainer" class="flex-grow flex flex-col relative w-full h-full">
                     
-                    <div id="dangerContainer" class="space-y-5"></div>
+                    <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center text-center text-gray-400 no-print">
+                        <div class="bg-gray-50 rounded-full p-8 mb-4 border border-gray-100">
+                            <i class="fas fa-file-medical text-6xl text-gray-300"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-500 mb-2">ระบบพร้อมทำงาน</h3>
+                        <p class="text-md">โปรดถ่ายรูปหรืออัปโหลดใบสั่งยาเพื่อเริ่มต้น</p>
+                    </div>
+
+                    <div id="loadingState" class="hidden absolute inset-0 flex flex-col items-center justify-center text-center no-print">
+                        <div class="loader mx-auto mb-6"></div>
+                        <p class="text-blue-600 font-bold text-xl" id="loadingText">ส่งข้อมูลไปยังเซิร์ฟเวอร์เพื่อประมวลผล...</p>
+                        <p class="text-gray-500 text-sm mt-2"><i class="fas fa-lock mr-1"></i> ระบบกำลังให้ AI สกัดชื่อยาอย่างปลอดภัย</p>
+                    </div>
+
+                    <div id="resultsSection" class="hidden w-full h-full space-y-6 pb-4">
+                        <div class="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                            <p class="text-sm font-bold text-blue-800 mb-3"><i class="fas fa-capsules mr-1"></i> รายการยาที่ AI สกัดและปรับแก้ตัวสะกดได้:</p>
+                            <div id="extractedDrugsList" class="flex flex-wrap gap-2"></div>
+                        </div>
+
+                        <div id="safeMessage" class="hidden bg-emerald-50 border border-emerald-200 text-emerald-800 p-6 rounded-xl flex items-start gap-4 shadow-sm">
+                            <i class="fas fa-check-circle text-4xl text-emerald-500"></i>
+                            <div>
+                                <h3 class="text-xl font-bold mb-1">ปลอดภัย: ไม่พบอันตรกิริยาระดับ D หรือ X</h3>
+                                <p class="text-emerald-700">รายการยาที่วิเคราะห์ได้ ไม่มีปฏิกิริยารุนแรงกับ Warfarin ตามฐานข้อมูลอ้างอิง</p>
+                            </div>
+                        </div>
+                        
+                        <div id="dangerContainer" class="space-y-5 flex-grow"></div>
+                    </div>
+
                 </div>
             </div>
         </div>
     </main>
 
     <script>
-        // ใช้ลิงก์ Google Sheet ที่คุณเชื่อมต่อสำเร็จแล้ว
         const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRlPDK0ezQlGk_ZNxzX_DiELXIDCFHM5lmmEY1rvv2_T8hvOyRXwdriHJDsrqyWE5i9P3S1c64Hem47/pub?output=csv";
 
         let sheetData = [];
         let fuse;
         let base64Image = "";
-        
-        // ตัวแปรเก็บข้อมูลยาอันตรายสำหรับนำไปพิมพ์สติกเกอร์
         let globalInteractions = [];
 
         window.onload = () => {
@@ -169,6 +181,24 @@
             });
         };
 
+        // ระบบจัดการ State ของหน้าจอที่แก้ปัญหาบั๊กซ้อนทับ 100%
+        function setUIState(state) {
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('resultsSection').classList.add('hidden');
+            document.getElementById('exportPdfBtn').classList.add('hidden');
+            document.getElementById('printStickerBtn').classList.add('hidden');
+            document.getElementById('reportArea').classList.remove('critical-alert-active'); // ปิดไฟกระพริบ
+
+            if (state === 'empty') {
+                document.getElementById('emptyState').classList.remove('hidden');
+            } else if (state === 'loading') {
+                document.getElementById('loadingState').classList.remove('hidden');
+            } else if (state === 'results') {
+                document.getElementById('resultsSection').classList.remove('hidden');
+            }
+        }
+
         function handleImageUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -177,13 +207,7 @@
                 base64Image = e.target.result.split(',')[1];
                 document.getElementById('imagePreview').src = e.target.result;
                 document.getElementById('imagePreviewContainer').classList.remove('hidden');
-                
-                // อัปเกรด 1: คงหน้าจอ "ระบบพร้อมทำงาน" ไว้จนกว่าจะกดปุ่มวิเคราะห์
-                document.getElementById('emptyState').classList.remove('hidden');
-                
-                document.getElementById('resultsSection').classList.add('hidden');
-                document.getElementById('exportPdfBtn').classList.add('hidden');
-                document.getElementById('printStickerBtn').classList.add('hidden');
+                setUIState('empty'); // รีเซ็ตหน้าจอกลับมารอวิเคราะห์
             };
             reader.readAsDataURL(file);
         }
@@ -192,12 +216,10 @@
             if (!base64Image) { alert("กรุณาอัปโหลดรูปภาพใบสั่งยาก่อนครับ"); return; }
             if (sheetData.length === 0) { alert("ฐานข้อมูลยังไม่พร้อม! กรุณารอสักครู่"); return; }
             
-            // อัปเกรด 1: พอเริ่มวิเคราะห์ ให้ซ่อน "ระบบพร้อมทำงาน" ถาวร
-            showLoading("กำลังส่งข้อมูลให้ AI วิเคราะห์...");
-            document.getElementById('emptyState').classList.add('hidden');
+            setUIState('loading');
+            document.getElementById('loadingText').innerText = "ส่งข้อมูลไปยังเซิร์ฟเวอร์เพื่อประมวลผล...";
             
             try {
-                // เรียกใช้ API หลังบ้านผ่านโฟลเดอร์ api/analyze
                 const response = await fetch('/api/analyze', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -223,7 +245,7 @@
             } catch (error) {
                 console.error("วิเคราะห์ล้มเหลว:", error);
                 alert(`เกิดข้อผิดพลาด:\n${error.message}`);
-                hideLoading();
+                setUIState('empty');
             }
         }
 
@@ -235,7 +257,9 @@
             drugsListBadge.innerHTML = '';
             
             let hasDanger = false;
-            globalInteractions = []; // รีเซ็ตข้อมูลพิมพ์สติกเกอร์
+            let hasCriticalLevelX = false;
+            let criticalDrugsNames = [];
+            globalInteractions = [];
 
             scannedDrugs.forEach(drug => {
                 drugsListBadge.innerHTML += `<span class="bg-white text-blue-800 text-sm font-bold px-4 py-1.5 rounded-full border border-blue-200 shadow-sm inline-block">${drug}</span>`;
@@ -248,7 +272,10 @@
 
                     if (rating === 'D' || rating === 'X') {
                         hasDanger = true;
-                        // เก็บข้อมูลลง Array สำหรับเตรียมพิมพ์สติกเกอร์
+                        if (rating === 'X') {
+                            hasCriticalLevelX = true;
+                            criticalDrugsNames.push(matchedRow['interacting_drugs']);
+                        }
                         globalInteractions.push({ drugName: matchedRow['interacting_drugs'], level: rating, row: matchedRow });
                         renderInteractionCard(matchedRow['interacting_drugs'], matchedRow, rating);
                     }
@@ -258,17 +285,39 @@
             const now = new Date();
             document.getElementById('printTimestamp').innerText = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' });
 
-            hideLoading();
-            document.getElementById('resultsSection').classList.remove('hidden');
+            setUIState('results'); // เปลี่ยนสถานะเป็นหน้าผลลัพธ์ (กล่องเก่าจะหายไป 100%)
             
             if (!hasDanger) {
                 document.getElementById('safeMessage').classList.remove('hidden');
-                document.getElementById('exportPdfBtn').classList.add('hidden'); 
-                document.getElementById('printStickerBtn').classList.add('hidden'); 
             } else {
                 document.getElementById('safeMessage').classList.add('hidden');
                 document.getElementById('exportPdfBtn').classList.remove('hidden'); 
-                document.getElementById('printStickerBtn').classList.remove('hidden'); // โชว์ปุ่มพิมพ์สติกเกอร์
+                document.getElementById('printStickerBtn').classList.remove('hidden'); 
+
+                // 🚨 Trigger Killer Feature: เสียงพูด + ไฟกระพริบ เมื่อเจอระดับ X
+                if (hasCriticalLevelX) {
+                    triggerCriticalAlert(criticalDrugsNames.join(' และ '));
+                }
+            }
+        }
+
+        // ฟังก์ชันไม้ตาย: แจ้งเตือนฉุกเฉินด้วยแสงและเสียง
+        function triggerCriticalAlert(drugNames) {
+            // เปิดไฟกระพริบสีแดงที่กรอบ
+            document.getElementById('reportArea').classList.add('critical-alert-active');
+            
+            // ใช้ Web Speech API พูดภาษาไทย
+            if ('speechSynthesis' in window) {
+                // หยุดเสียงเดิมที่อาจจะพูดค้างอยู่
+                window.speechSynthesis.cancel();
+                
+                const msg = new SpeechSynthesisUtterance();
+                msg.text = `แจ้งเตือนความปลอดภัย พบอันตรกิริยาระดับเอ็กซ์ ห้ามใช้ยา ${drugNames} ร่วมกับ วาร์ฟาริน เด็ดขาด`;
+                msg.lang = 'th-TH'; // ภาษาไทย
+                msg.rate = 0.9; // พูดช้าลงนิดนึงให้ฟังชัด
+                msg.pitch = 1.1; // โทนเสียงเตือน
+                
+                window.speechSynthesis.speak(msg);
             }
         }
 
@@ -315,13 +364,10 @@
             container.innerHTML += cardHTML;
         }
 
-        // ==========================================
-        // อัปเกรด 2: ฟีเจอร์พิมพ์สติกเกอร์ (10x8 cm)
-        // ==========================================
+        // ฟังก์ชันพิมพ์สติกเกอร์ที่สมบูรณ์แบบ
         function printSticker() {
             if(globalInteractions.length === 0) return;
 
-            // สร้าง iframe ซ่อนไว้เพื่อสั่งพิมพ์เฉพาะเนื้อหาสติกเกอร์
             const iframe = document.createElement('iframe');
             iframe.style.display = 'none';
             document.body.appendChild(iframe);
@@ -340,7 +386,6 @@
                 `;
             });
 
-            // สร้างหน้ากระดาษขนาด แนวนอน 10cm x แนวตั้ง 8cm พร้อมระยะขอบ
             const html = `
                 <!DOCTYPE html>
                 <html lang="th">
@@ -354,8 +399,8 @@
                         body { 
                             font-family: 'Sarabun', sans-serif; 
                             margin: 0; 
-                            padding-top: 1cm; /* ขอบบนอย่างน้อย 1 ซม. */
-                            padding-left: 1cm; /* ขอบซ้ายอย่างน้อย 1 ซม. */
+                            padding-top: 1cm;
+                            padding-left: 1cm;
                             padding-right: 0.5cm;
                             padding-bottom: 0.5cm;
                             width: 10cm; 
@@ -379,11 +424,10 @@
             iframe.contentDocument.write(html);
             iframe.contentDocument.close();
 
-            // หน่วงเวลาให้ Font โหลดเสร็จก่อนสั่ง Print
             setTimeout(() => {
                 iframe.contentWindow.focus();
                 iframe.contentWindow.print();
-                setTimeout(() => { document.body.removeChild(iframe); }, 1000); // เคลียร์ขยะหลังพิมพ์เสร็จ
+                setTimeout(() => { document.body.removeChild(iframe); }, 1000); 
             }, 500);
         }
 
@@ -418,21 +462,6 @@
                     btn.disabled = false;
                 });
             }, 100);
-        }
-
-        function showLoading(text) {
-            document.getElementById('loadingState').classList.remove('hidden');
-            document.getElementById('loadingText').innerText = text;
-            document.getElementById('emptyState').classList.add('hidden');
-            document.getElementById('resultsSection').classList.add('hidden');
-        }
-
-        function hideLoading() {
-            document.getElementById('loadingState').classList.add('hidden');
-            if(document.getElementById('resultsSection').classList.contains('hidden')) {
-                // ถ้ามี Error กลับไปหน้าอัปโหลดปกติ
-                document.getElementById('emptyState').classList.remove('hidden');
-            }
         }
     </script>
 </body>
